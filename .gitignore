@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+com.koraybirand.stockb.sdPlugin/bin/
+
+# Runtime logs
+com.koraybirand.stockb.sdPlugin/logs/
+
+# Packaged plugin
+*.streamDeckPlugin
+
+# OS / editor
+.DS_Store
+*.log
+.vscode/

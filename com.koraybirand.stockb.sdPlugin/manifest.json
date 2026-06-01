@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "StocKB",
+  "UUID": "com.koraybirand.stockb",
+  "Version": "1.0.0.0",
+  "Author": "Koray Birand",
+  "Description": "GenelPara üzerinden canlı döviz ve altın fiyatları",
+  "Category": "StocKB",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "Icon": "imgs/plugin/marketplace",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.5"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "12"
+    },
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "Actions": [
+    {
+      "Name": "Fiyat",
+      "UUID": "com.koraybirand.stockb.ticker",
+      "Icon": "imgs/actions/ticker/icon",
+      "Tooltip": "Döviz veya altın fiyatını gösterir (GenelPara)",
+      "PropertyInspectorPath": "ui/ticker.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "States": [
+        {
+          "Image": "imgs/actions/ticker/key",
+          "TitleAlignment": "middle"
+        }
+      ]
+    }
+  ]
+}
