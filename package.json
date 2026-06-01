@@ -1,7 +1,7 @@
 {
   "name": "stockb",
-  "version": "1.0.0",
-  "description": "GenelPara döviz & altın fiyatlarını Stream Deck'te gösterir",
+  "version": "1.1.0",
+  "description": "truncgil döviz & altın fiyatlarını Stream Deck'te gösterir",
   "type": "module",
   "scripts": {
     "build": "rollup -c",

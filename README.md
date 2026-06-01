@@ -1,14 +1,14 @@
 # StocKB — Döviz & Altın Stream Deck Plugin
 
-A lightweight [Elgato Stream Deck](https://www.elgato.com/stream-deck) plugin that shows **live currency and gold prices** on your keys, powered by the free [GenelPara](https://www.genelpara.com/) API.
+A lightweight [Elgato Stream Deck](https://www.elgato.com/stream-deck) plugin that shows **live currency and gold prices** on your keys, powered by the free [truncgil finans](https://finans.truncgil.com/) API.
 
-Each key renders a clean, fully‑customizable tile: a label, the current price, and a colored ▲/▼ change indicator. Add one key for the US Dollar, another for gram gold — or any symbol GenelPara supports.
+Each key renders a clean, fully‑customizable tile: a label, the current price, and a colored ▲/▼ change indicator. Add one key for the US Dollar, another for gram gold — or any symbol truncgil supports.
 
 ```
 ┌─────────────┐
 │    Dolar    │   ← label
-│   ₺45.91    │   ← price (auto-fit)
-│  ▼ %-0.02   │   ← change (green ▲ / red ▼)
+│    45,90    │   ← price (auto-fit, tr-TR formatting)
+│  ▼ %0.13    │   ← change (green ▲ / red ▼)
 └─────────────┘
 ```
 
@@ -16,8 +16,10 @@ Each key renders a clean, fully‑customizable tile: a label, the current price,
 
 ## Features
 
-- 💱 **Currency & gold** quotes from GenelPara (`doviz` / `altin` lists).
+- 💱 **Currency, gold & more** — döviz, altın (gram/çeyrek/…), silver, Brent, Bitcoin, all from one feed.
 - 🔄 **Auto-refresh** on a configurable interval (per key), plus instant refresh on key press.
+- 🚀 **One shared fetch** — every key reuses a single cached request (30s TTL) instead of one request per key.
+- 🛡️ **Resilient** — the upstream feed occasionally returns a truncated body; the plugin retries once and falls back to the last good data, so keys never flicker to an error on a transient blip.
 - 🎨 **Fully themeable per key** — font size for each line, top padding, and background color.
 - 📐 **Auto-shrinking price** so long numbers never overflow the key.
 - 🟢🔴 **Color-coded change** indicator (up green / down red) with ▲/▼ arrows.
@@ -36,7 +38,7 @@ Each key renders a clean, fully‑customizable tile: a label, the current price,
 ### From source (development)
 
 ```bash
-git clone https://github.com/<you>/StocKB.git
+git clone https://github.com/kbirand/StocKB.git
 cd StocKB
 npm install
 npm run build
@@ -57,8 +59,7 @@ Then (re)start the Stream Deck app so it loads the plugin.
 
 | Setting | Key | Description | Default |
 |---|---|---|---|
-| **Veri Tipi** | `list` | `Döviz` (currency) or `Altın` (gold) | `doviz` |
-| **Sembol** | `sembol` | GenelPara symbol — see table below | `USD` |
+| **Sembol** | `sembol` | truncgil symbol — see table below | `USD` |
 | **Etiket** | `label` | Custom label; falls back to the symbol | — |
 | **Yenileme (sn)** | `interval` | Refresh interval in seconds (min 15) | `60` |
 | **Etiket Boyutu** | `labelSize` | Label font size (px) | `22` |
@@ -69,57 +70,47 @@ Then (re)start the Stream Deck app so it loads the plugin.
 
 ### Example layout
 
-| Key | Veri Tipi | Sembol | Etiket |
-|---|---|---|---|
-| 1 | Döviz | `USD` | Dolar |
-| 2 | Döviz | `EUR` | Euro |
-| 3 | Altın | `GA`  | Gram Altın |
+| Key | Sembol | Etiket |
+|---|---|---|
+| 1 | `USD` | Dolar |
+| 2 | `EUR` | Euro |
+| 3 | `GRA` | Gram Altın |
 
 ---
 
 ## Common symbols
 
-**Döviz (`list=doviz`):** `USD` (Dolar), `EUR` (Euro), `GBP` (Sterlin), `CHF`, `JPY`, `CAD`, `AUD`, `RUB`, `SAR`, …
+**Döviz:** `USD` (Dolar), `EUR` (Euro), `GBP` (Sterlin), `CHF`, `JPY`, `CAD`, `AUD`, `RUB`, `SAR`, …
 
-**Altın (`list=altin`):** `GA` (Gram), `C` (Çeyrek), `Y` (Yarım), `T` (Tam), `CUM` (Cumhuriyet), `ATA`, `ONS`, …
+**Altın:** `GRA` (Gram), `CEYREKALTIN` (Çeyrek), `YARIMALTIN` (Yarım), `TAMALTIN` (Tam), `CUMHURIYETALTINI` (Cumhuriyet), `ATAALTIN`, `14AYARALTIN`, `18AYARALTIN`, …
 
-> Make sure **Veri Tipi** matches the symbol — e.g. `GA` only works under **Altın**, `USD` only under **Döviz**.
+**Diğer:** `GUMUS` (Gümüş), `BRENT` (petrol), `DBITCOIN` (Bitcoin), …
+
+> Legacy GenelPara gold codes still work and are mapped automatically: `GA → GRA`, `C → CEYREKALTIN`, `Y → YARIMALTIN`, `T → TAMALTIN`, `CUM → CUMHURIYETALTINI`. No need to change existing keys when upgrading.
 
 ---
 
 ## Data source & API
 
-Quotes come from GenelPara's public JSON endpoint:
+Quotes come from truncgil's public JSON endpoint, which returns **every symbol in a single response**:
 
 ```
-https://api.genelpara.com/json/?list=<doviz|altin>&sembol=<SYMBOL>
+https://finans.truncgil.com/v4/today.json
 ```
 
-Example response:
+Example response (excerpt):
 
 ```json
 {
-  "success": true,
-  "list": "doviz",
-  "count": 1,
-  "remaining": 997,
-  "data": {
-    "USD": {
-      "alis": "45.9059",
-      "satis": "45.9097",
-      "degisim": "-0.02",
-      "oran": "-0.0092",
-      "yon": "moneyDown",
-      "kur": "TRY",
-      "sembol": "₺"
-    }
-  }
+  "Update_Date": "2026-06-01 20:19:01",
+  "USD": { "Buying": 45.8906, "Selling": 45.9027, "Change": 0.16, "Type": "Currency" },
+  "GRA": { "Buying": 6601.77, "Selling": 6602.64, "Change": -1.27, "Type": "Gold", "Name": "GRAMALTIN" }
 }
 ```
 
-The plugin displays `satis` (selling price), colors the change by `yon` (`moneyUp`/`moneyDown`), and prefixes the currency `sembol`.
+The plugin displays `Selling`, derives the ▲/▼ direction and green/red color from the sign of `Change`, and formats the price with Turkish grouping (e.g. `6.604,94`).
 
-> ⚠️ **Fair-use limit:** GenelPara blocks IPs that exceed ~**10,000 requests/day**. At the default 60s interval, one key makes ~1,440 requests/day — keep that in mind if you add many fast‑refreshing keys. The `remaining` field in each response shows your daily quota.
+> 💡 Because the plugin fetches the whole feed once and caches it for 30s, adding more keys does **not** add network requests. There is no per-symbol daily limit to worry about.
 
 ---
 
@@ -152,7 +143,7 @@ StocKB/
 ├── src/
 │   ├── plugin.ts                 # entry point — registers the action, connects
 │   └── actions/
-│       └── price-ticker.ts       # fetch + SVG rendering + refresh timers
+│       └── price-ticker.ts       # fetch + cache + SVG rendering + refresh timers
 ├── com.koraybirand.stockb.sdPlugin/
 │   ├── manifest.json             # plugin & action metadata
 │   ├── bin/plugin.js             # bundled output (generated)
@@ -167,6 +158,7 @@ StocKB/
 ### How it works
 
 - The key image is a **base64‑encoded SVG** set via `action.setImage()`, so every line (font size, color, position, background) is drawn programmatically — no static images.
+- All keys share **one cached fetch** of the truncgil feed (30s TTL, with an in‑flight guard so simultaneous refreshes coalesce into a single request).
 - Each key keeps **its own refresh timer**, started on `onWillAppear` and cleared on `onWillDisappear`.
 - Refreshes are triggered by: the timer, `onWillAppear`, `onDidReceiveSettings` (live updates while editing), and `onKeyDown` (manual).
 - Placeholder icons are solid‑color PNGs created by `gen-icons.mjs`; replace the files in `imgs/` with real artwork before publishing.
@@ -183,21 +175,20 @@ This produces `com.koraybirand.stockb.streamDeckPlugin`, ready to share or submi
 
 ## Roadmap / ideas
 
-- [ ] One shared fetch per symbol (instead of one request per key)
 - [ ] Text color pickers for label / price / change
-- [ ] Thousands separator (`6.656,98`)
-- [ ] `alış` / `satış` toggle
+- [ ] `Buying` / `Selling` toggle
+- [ ] Symbol picker dropdown in the Property Inspector
 - [ ] Real icons & marketplace artwork
 
 ---
 
 ## Credits
 
-- Data: [GenelPara](https://www.genelpara.com/)
+- Data: [truncgil finans](https://finans.truncgil.com/)
 - Built with the [Elgato Stream Deck SDK](https://docs.elgato.com/streamdeck/sdk/introduction/getting-started/)
 
 ## License
 
 [MIT](LICENSE) © Koray Birand
 
-> Not affiliated with or endorsed by Elgato or GenelPara. Prices are provided for informational purposes only and may be delayed; do not rely on them for trading decisions.
+> Not affiliated with or endorsed by Elgato or truncgil. Prices are provided for informational purposes only and may be delayed; do not rely on them for trading decisions.

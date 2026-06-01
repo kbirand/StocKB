@@ -5,15 +5,8 @@
     <script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
   </head>
   <body>
-    <sdpi-item label="Veri Tipi">
-      <sdpi-select setting="list" default="doviz">
-        <option value="doviz">Döviz</option>
-        <option value="altin">Altın</option>
-      </sdpi-select>
-    </sdpi-item>
-
     <sdpi-item label="Sembol">
-      <sdpi-textfield setting="sembol" default="USD" placeholder="USD, EUR, GA…" required></sdpi-textfield>
+      <sdpi-textfield setting="sembol" default="USD" placeholder="USD, EUR, GRA…" required></sdpi-textfield>
     </sdpi-item>
 
     <sdpi-item label="Etiket">
@@ -48,7 +41,8 @@
       <summary>Yaygın semboller</summary>
       <small>
         <b>Döviz:</b> USD (Dolar), EUR (Euro), GBP (Sterlin), CHF, JPY<br />
-        <b>Altın:</b> GA (Gram), C (Çeyrek), Y (Yarım), T (Tam), CUM (Cumhuriyet), ONS
+        <b>Altın:</b> GRA (Gram), CEYREKALTIN, YARIMALTIN, TAMALTIN, CUMHURIYETALTINI<br />
+        <b>Diğer:</b> GUMUS (Gümüş), BRENT, DBITCOIN
       </small>
     </details>
   </body>

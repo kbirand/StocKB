@@ -10,9 +10,9 @@ import streamDeck, {
 
 /** Settings stored per key. */
 type TickerSettings = {
-  /** "doviz" (currency) or "altin" (gold). */
+  /** "doviz" (currency) or "altin" (gold). Kept for backward compatibility. */
   list?: "doviz" | "altin";
-  /** GenelPara symbol, e.g. "USD", "EUR", "GA" (gram altın). */
+  /** Symbol, e.g. "USD", "EUR", "GRA" (gram altın). */
   sembol?: string;
   /** Custom label shown on the key. Falls back to the symbol. */
   label?: string;
@@ -30,17 +30,91 @@ type TickerSettings = {
   topPad?: number;
 };
 
-/** Shape of a single quote returned by GenelPara. */
+/** Shape of a single quote returned by truncgil (v4). */
 type Quote = {
-  alis?: string;
-  satis?: string;
-  degisim?: string;
-  yon?: string; // "moneyUp" | "moneyDown"
-  sembol?: string; // currency symbol, e.g. "₺"
+  Buying?: number;
+  Selling?: number;
+  Change?: number; // percentage change, e.g. 0.16 or -1.27
+  Type?: string; // "Currency" | "Gold" | ...
+  Name?: string;
 };
+
+/** Full payload: a map of symbol -> quote, plus an "Update_Date" string. */
+type TruncgilData = Record<string, Quote | string>;
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+const ENDPOINT = "https://finans.truncgil.com/v4/today.json";
+
+/**
+ * truncgil returns every symbol in one response, so we fetch once and share
+ * the result across all keys. The cache has a short TTL and an in-flight guard
+ * so simultaneous key refreshes coalesce into a single network request.
+ */
+const CACHE_TTL_MS = 30_000;
+let cache: { at: number; data: TruncgilData } | null = null;
+let inflight: Promise<TruncgilData> | null = null;
+
+/** Fetch the endpoint once and parse it. Throws on HTTP or JSON errors. */
+async function fetchOnce(): Promise<TruncgilData> {
+  const res = await fetch(ENDPOINT, { headers: { "User-Agent": UA, Accept: "application/json" } });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  // The feed occasionally returns a truncated body, so parse defensively
+  // from text rather than trusting res.json().
+  const text = await res.text();
+  return JSON.parse(text) as TruncgilData;
+}
+
+/**
+ * Return the latest data, coalescing concurrent callers and caching for a
+ * short TTL. The upstream feed intermittently emits malformed JSON, so we
+ * retry once and, failing that, serve the last good data (stale) rather than
+ * flipping every key to an error.
+ */
+async function fetchAll(): Promise<TruncgilData> {
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
+    return cache.data;
+  }
+  if (inflight) {
+    return inflight;
+  }
+  inflight = (async () => {
+    try {
+      let data: TruncgilData;
+      try {
+        data = await fetchOnce();
+      } catch (first) {
+        streamDeck.logger.warn("truncgil fetch failed, retrying once", first);
+        data = await fetchOnce();
+      }
+      cache = { at: Date.now(), data };
+      return data;
+    } catch (err) {
+      if (cache) {
+        streamDeck.logger.warn("truncgil unavailable, serving cached data", err);
+        return cache.data;
+      }
+      throw err;
+    }
+  })();
+  try {
+    return await inflight;
+  } finally {
+    inflight = null;
+  }
+}
+
+/** Map legacy GenelPara gold codes to their truncgil equivalents. */
+const SYMBOL_ALIASES: Record<string, string> = {
+  GA: "GRA", // gram altın
+  C: "CEYREKALTIN",
+  Y: "YARIMALTIN",
+  T: "TAMALTIN",
+  CUM: "CUMHURIYETALTINI"
+};
 
 @action({ UUID: "com.koraybirand.stockb.ticker" })
 export class PriceTicker extends SingletonAction<TickerSettings> {
@@ -91,39 +165,44 @@ export class PriceTicker extends SingletonAction<TickerSettings> {
 
   /** Fetch the latest quote and paint the key. */
   private async refresh(action: KeyAction<TickerSettings>, settings: TickerSettings): Promise<void> {
-    const list = settings.list === "altin" ? "altin" : "doviz";
-    const sembol = (settings.sembol || "USD").trim().toUpperCase();
-    const label = settings.label?.trim() || sembol;
-
-    const url = `https://api.genelpara.com/json/?list=${list}&sembol=${encodeURIComponent(sembol)}`;
+    const raw = (settings.sembol || "USD").trim().toUpperCase();
+    const sembol = SYMBOL_ALIASES[raw] ?? raw;
+    const label = settings.label?.trim() || raw;
 
     try {
-      const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const json = (await res.json()) as { success?: boolean; data?: Record<string, Quote> };
-      const quote = json?.data?.[sembol];
+      const data = await fetchAll();
+      const entry = data[sembol];
+      const quote = entry && typeof entry === "object" ? entry : undefined;
 
-      if (!json?.success || !quote) {
+      if (!quote) {
         await action.setImage(this.render(label, "—", "?", "#888888", settings));
-        streamDeck.logger.warn(`No data for ${list}/${sembol}`);
+        streamDeck.logger.warn(`No data for ${sembol}`);
         return;
       }
 
-      const price = quote.satis ?? quote.alis ?? "—";
-      const change = quote.degisim ?? "";
-      const changeNum = parseFloat(String(change).replace(",", "."));
-      const up = quote.yon === "moneyUp" || (!Number.isNaN(changeNum) && changeNum >= 0);
+      const value = quote.Selling ?? quote.Buying;
+      const price = value != null ? this.formatPrice(value) : "—";
+      const changeNum = Number(quote.Change);
+      const hasChange = !Number.isNaN(changeNum);
+      const up = hasChange ? changeNum >= 0 : true;
       const color = up ? "#2ecc71" : "#e74c3c";
       const arrow = up ? "▲" : "▼";
-      const cur = quote.sembol ?? "";
+      const changeText = hasChange ? `${arrow} %${Math.abs(changeNum).toFixed(2)}` : "";
 
-      await action.setImage(this.render(label, `${cur}${price}`, `${arrow} %${change}`, color, settings));
+      await action.setImage(this.render(label, price, changeText, color, settings));
     } catch (err) {
-      streamDeck.logger.error(`Fetch failed for ${list}/${sembol}`, err);
+      streamDeck.logger.error(`Fetch failed for ${sembol}`, err);
       await action.setImage(this.render(label, "hata", "✕", "#e74c3c", settings));
     }
+  }
+
+  /** Format a numeric price with Turkish-style grouping and 2–4 decimals. */
+  private formatPrice(value: number): string {
+    const decimals = value >= 10 ? 2 : value >= 1 ? 3 : 4;
+    return value.toLocaleString("tr-TR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
   }
 
   /** Build a 144x144 SVG key image as a base64 data URI. */
